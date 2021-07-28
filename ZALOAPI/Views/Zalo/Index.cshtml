@@ -1,0 +1,179 @@
+﻿@model ZaloViewModel
+@using ZALOAPI.Models
+
+@{
+    ViewBag.Title = "Index";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+
+    var listType = new List<SelectListItem>();
+    listType.Add(new SelectListItem() { Text = "Chọn", Value = "" });
+    listType.Add(new SelectListItem() { Text = "Lấy danh sách người quan tâm", Value = "1" });
+    listType.Add(new SelectListItem() { Text = "Lấy thông tin người quan tâm", Value = "" });
+    listType.Add(new SelectListItem() { Text = "Lấy danh sách các hội thoại với người quan tâm", Value = "" });
+}
+<link href="~/Content/style.css" rel="stylesheet" />
+
+<div style="margin:10px 8px;">
+    <div style="display:inline;float:left;width:50%;">
+        @Html.TextBoxFor(x => x.Token, new { @class = "form-control", @style = "display:inline" })
+        <button type="button" onclick="setToken();" class="btn btn-info">SET TOKEN</button>
+    </div>
+    <div style="display:inline;float:right;width:50%;">
+        <div class="incoming_msg">
+            <div class="received_msg" style="text-align:right;">
+                <div class="received_withd_msg" style="width:auto;">
+                    <h3 id="oa_display_name" style="margin:0"></h3>
+                    <span class="time_date" id="oa_description" style="overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; /* number of lines to show */ -webkit-box-orient: vertical;"></span>
+                </div>
+            </div>
+            <div class="incoming_msg_img"> <img src="https://ptetutorials.com/images/user-profile.png" alt="sunil" id="oa_avatar"> </div>
+        </div>
+    </div>
+</div>
+<div class="messaging" style="display:none;">
+    <div class="inbox_msg">
+        <div class="inbox_people">
+            <div class="headind_srch">
+                <div class="recent_heading">
+                    <h4>Recent</h4>
+                </div>
+                <div class="srch_bar">
+                    <div class="stylish-input-group">
+                        <input type="text" class="search-bar" placeholder="Search">
+                        @*<span class="input-group-addon">
+                            <button type="button"> <i class="fa fa-search" aria-hidden="true"></i> </button>
+                        </span>*@
+                    </div>
+                </div>
+            </div>
+            <div class="inbox_chat">
+
+            </div>
+        </div>
+        <div class="mesgs">
+            <div class="msg_history">
+
+            </div>
+            <div class="type_msg">
+                <div class="input_msg_write">
+                    <input type="text" class="write_msg" placeholder="Type a message" />
+                    <button class="msg_send_btn" type="button" onclick="sendMessage();"><i class="fa fa-paper-plane-o" aria-hidden="true"></i></button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+@section scripts
+{
+    <script>
+        var token = "";
+        var oa_id = "";
+
+        function sendMessage() {
+            var message = $(".write_msg").val();
+            var user_id = $(".write_msg").data("user-id");
+
+            if (message.length > 3 && user_id != "") {
+                $.ajax({
+                    method: "POST",
+                    url: "/Zalo/SendMessage",
+                    data: {
+                        access_token: token,
+                        user_id: user_id,
+                        message: message
+                    },
+                    success: function (data) {
+                        if (data.code == 0) {
+                            var html = '<div class="outgoing_msg"><div class="sent_msg"><p>'
+                                + message + '</p><span class="time_date">'
+                                + data.str_date_time + '</span></div></div>';
+                            $(".msg_history").append(html);
+                            $(".msg_history").animate({ scrollTop: $('.msg_history').prop("scrollHeight") }, 1000);
+                        }
+                    }
+                });
+            }
+        }
+
+        $(document).on("click", ".chat_list", function () {
+            var user_id = $(this).data("user-id");
+            var $this = $(this);
+            
+            $.ajax({
+                method: "POST",
+                url: "/Zalo/GetConversation",
+                data: {
+                    access_token: token,
+                    user_id: user_id
+                },
+                success: function (data) {
+                    $(".chat_list").removeClass("active_chat");
+                    $this.addClass("active_chat");
+                    $(".write_msg").attr("data-user-id", user_id);
+
+                    var html = "";
+                    if (data.length > 0) {
+                        $.each(data, function (i, mes) {
+                            //if (mes.from_id == oa_id) {
+                            if (mes.src == 0) {
+                                html += '<div class="outgoing_msg"><div class="sent_msg"><p>'
+                                    + mes.message + '</p><span class="time_date">'
+                                    + mes.str_date_time + '</span></div></div>';
+                            } else {
+                                html += '<div class="incoming_msg"><div class="incoming_msg_img"><img src="' + mes.from_avatar + '" alt="sunil"> </div>'
+                                    + '<div class="received_msg"><div class="received_withd_msg"><p>' + mes.message + '</p>'
+                                    + '<span class="time_date">' + mes.str_date_time + '</span></div></div></div>';
+                            }
+                        });
+                    }
+                    $(".msg_history").html(html);
+                }
+            });
+        });
+        function setToken() {
+            token = $("#Token").val();
+            if (token != "") {
+                $.ajax({
+                    method: "POST",
+                    url: "/Zalo/CallZaloAPI",
+                    data: {
+                        access_token: token,
+                        type: 1
+                    },
+                    success: function (data) {
+                        $(".messaging").show();
+                        if (data.lstUser.length > 0) {
+                            var html = "";
+                            $.each(data.recentChatList, function (i, mes) {
+                                if (mes.src == 0) {
+                                    html += '<div class="chat_list" data-user-id="' + mes.to_id + '"><div class="chat_people"><div class="chat_img">'
+                                        + '<img src="' + mes.to_avatar + '" alt="sunil">'
+                                        + '</div><div class="chat_ib">'
+                                        + '<h5>' + mes.to_display_name + ' <span class="chat_date">' + mes.str_date_time + '</span></h5><p><i class="fa fa-reply" aria-hidden="true"></i> '
+                                        + mes.message + '</p></div></div></div>';
+                                } else {
+                                    html += '<div class="chat_list" data-user-id="' + mes.from_id + '"><div class="chat_people"><div class="chat_img">'
+                                        + '<img src="' + mes.from_avatar + '" alt="sunil">'
+                                        + '</div><div class="chat_ib">'
+                                        + '<h5>' + mes.from_display_name + ' <span class="chat_date">' + mes.str_date_time + '</span></h5><p><i class="fa fa-share" aria-hidden="true"></i> '
+                                        + mes.message + '</p></div></div></div>';
+                                }
+                            });
+                            $(".inbox_chat").append(html);
+                            $(".chat_list").first().trigger('click');
+                        }
+
+                        if (data.oa != null) {
+                            oa_id = data.oa.oa_id;
+                            $("#oa_display_name").text(data.oa.display_name);
+                            $("#oa_description").text(data.oa.description);
+                            $("#oa_avatar").attr("src", data.oa.avatar);
+                        }
+                    }
+                });
+            } else {
+                $(".messaging").hide();
+            }
+        }
+    </script>
+}
